@@ -5,10 +5,14 @@ from setuptools import setup, find_packages
 from distutils.sysconfig import get_python_lib
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 
-os.environ["CC"] = "g++"
-os.environ["CXX"] = "g++"
-AUTOAWQ_KERNELS_VERSION = "0.0.6"
+if "CC" not in os.environ:
+    os.environ["CC"] = "g++"
+if "CXX" not in os.environ:
+    os.environ["CXX"] = "g++"
+AUTOAWQ_KERNELS_VERSION = "0.0.8"
 PYPI_BUILD = os.getenv("PYPI_BUILD", "0") == "1"
+COMPUTE_CAPABILITIES = os.getenv("COMPUTE_CAPABILITIES", "75,80,86,87,89,90")
+TORCH_VERSION = str(os.getenv("TORCH_VERSION", None) or torch.__version__).split('+', maxsplit=1)[0]
 CUDA_VERSION = os.getenv("CUDA_VERSION", None) or torch.version.cuda
 ROCM_VERSION = os.environ.get("ROCM_VERSION", None) or torch.version.hip
 
@@ -51,12 +55,13 @@ common_setup_kwargs = {
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
         "Programming Language :: C++",
     ],
 }
 
 requirements = [
-    "torch>=2.0.1",
+    f"torch>={TORCH_VERSION}",
 ]
 
 
@@ -90,7 +95,7 @@ def get_generator_flag():
 
 
 def get_compute_capabilities(
-    compute_capabilities={75, 80, 86, 89, 90}
+    compute_capabilities=set(map(int, COMPUTE_CAPABILITIES.split(",")))
 ):
     capability_flags = []
 
@@ -118,7 +123,7 @@ def get_extra_compile_args(arch_flags, generator_flags):
         include_arch = os.getenv("INCLUDE_ARCH", "1") == "1"
         # Relaxed args on Windows
         if include_arch:
-            extra_compile_args = {"nvcc": arch_flags}
+            extra_compile_args = {"nvcc": ["-allow-unsupported-compiler"] + arch_flags}
 
     elif CUDA_VERSION:
         extra_compile_args = {
